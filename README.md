@@ -57,7 +57,7 @@ Stop Docker-containerne før lokal kørsel, så portene er ledige.
 1. Vælg et event.
 2. Skriv dit navn i feltet under Tilmelding.
 3. Klik Tilmeld.
-4. Klik Afmeld ud for dit navn for at fjerne tilmeldingen.
+4. Klik Afmeld ud for den deltager, der skal fjernes.
 
 Nye events oprettes i formularen nederst på siden.
 
