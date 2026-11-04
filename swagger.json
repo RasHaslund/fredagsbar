@@ -1,0 +1,311 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fredagsbarens Event-API",
+    "description": "API til administration af events og tilmeldinger.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5001",
+      "description": "Lokal API"
+    }
+  ],
+  "paths": {
+    "/events": {
+      "get": {
+        "summary": "Hent alle events",
+        "operationId": "getEvents",
+        "responses": {
+          "200": {
+            "description": "Listen over alle events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Event"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Opret et event",
+        "operationId": "createEvent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Eventet er oprettet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ugyldig body eller manglende eller ugyldige felter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{event_id}": {
+      "parameters": [
+        {
+          "name": "event_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Hent ét event",
+        "operationId": "getEvent",
+        "responses": {
+          "200": {
+            "description": "Det ønskede event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/EventNotFound"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Slet et event",
+        "operationId": "deleteEvent",
+        "responses": {
+          "204": {
+            "description": "Eventet og dets tilmeldinger er slettet. Ingen body."
+          },
+          "404": {
+            "$ref": "#/components/responses/EventNotFound"
+          }
+        }
+      }
+    },
+    "/events/{event_id}/signups": {
+      "post": {
+        "summary": "Tilmeld en person",
+        "operationId": "createSignup",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSignup"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Personen er tilmeldt. Returnerer det opdaterede event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ugyldig body eller manglende eller ugyldigt navn.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/EventNotFound"
+          },
+          "409": {
+            "description": "Personen er allerede tilmeldt, eller eventet er fuldt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{event_id}/signups/{name}": {
+      "delete": {
+        "summary": "Afmeld en person",
+        "operationId": "deleteSignup",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Det tilmeldte navn. Der skelnes mellem store og små bogstaver.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Tilmeldingen er slettet. Ingen body."
+          },
+          "404": {
+            "description": "Eventet eller tilmeldingen findes ikke.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Event": {
+        "type": "object",
+        "required": ["id", "title", "date", "capacity", "participants"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "Quizaften"
+          },
+          "date": {
+            "type": "string",
+            "example": "2026-11-13"
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 3
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["Anna", "Bo"]
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Eventet findes ikke"
+          }
+        }
+      },
+      "CreateEvent": {
+        "type": "object",
+        "required": ["title", "date", "capacity"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S",
+            "description": "Må ikke kun indeholde mellemrum.",
+            "example": "Beerpong"
+          },
+          "date": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S",
+            "description": "Dato som tekst. Må ikke kun indeholde mellemrum.",
+            "example": "2026-11-27"
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 8
+          }
+        }
+      },
+      "CreateSignup": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S",
+            "description": "Må ikke kun indeholde mellemrum. Mellemrum i starten og slutningen fjernes.",
+            "example": "Rasmus"
+          }
+        }
+      }
+    },
+    "responses": {
+      "EventNotFound": {
+        "description": "Eventet findes ikke.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}
