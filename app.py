@@ -5,12 +5,12 @@ import httpx
 import streamlit as st
 
 
-# Miljøvariablen gør det muligt at bruge forskellige API-adresser lokalt og i Docker.
+# API-adressen kan tilpasses til Docker gennem en miljøvariabel.
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:5001").rstrip("/")
 
 
 def api_request(method, path, json=None):
-    """Sender en HTTP-request og håndterer forbindelsesfejl og fejlsvar."""
+    """Sender en HTTP-request og viser forståelige fejl i brugerfladen."""
     try:
         response = httpx.request(
             method,
@@ -49,19 +49,17 @@ def api_request(method, path, json=None):
     return None
 
 
-def show_event_label(event_id):
-    """Danner visningsteksten for et event uden at ændre det valgte ID."""
-    event = events_by_id[event_id]
-    return f"{event['title']} · {event['date']}"
-
-
+# Navnet bevares mellem genkørsler i den aktuelle brugers session.
 if "name" not in st.session_state:
     st.session_state["name"] = ""
+
+st.sidebar.header("Din profil")
+st.sidebar.text_input("Mit navn", key="name")
 
 st.title("Fredagsbarens events")
 st.subheader("Alle events")
 
-# Et klik genkører scriptet og henter aktuelle data fra API’en.
+# Knappen genkører scriptet, så aktuelle data hentes fra API’en.
 st.button("Opdatér oversigt")
 
 response = api_request("GET", "/events")
@@ -79,10 +77,19 @@ if not isinstance(events, list):
     st.error("API’en returnerede ikke den forventede liste af events.")
     st.stop()
 
-# Opslaget giver adgang til de nyeste eventdata ud fra et stabilt ID.
+
+# Event-ID'er bruges som stabile valgmuligheder i dropdownmenuen.
 events_by_id = {event["id"]: event for event in events}
 event_ids = list(events_by_id)
 
+
+def show_event_label(event_id):
+    """Returnerer titel og dato for det angivne event."""
+    event = events_by_id[event_id]
+    return f"{event['title']} · {event['date']}"
+
+
+# Frontenden beregner antal tilmeldte og ledige pladser.
 rows = []
 
 for event in events:
@@ -104,7 +111,7 @@ else:
 if events:
     st.subheader("Tilmelding")
 
-    # Et slettet event må ikke blive stående som valgt i sessionen.
+    # Et event, der er slettet, erstattes af det første tilgængelige event.
     if st.session_state.get("selected_event_id") not in events_by_id:
         st.session_state["selected_event_id"] = event_ids[0]
 
@@ -117,24 +124,35 @@ if events:
 
     selected_event = events_by_id[selected_event_id]
     participants = selected_event["participants"]
+    name = st.session_state["name"].strip()
+
     is_full = len(participants) >= selected_event["capacity"]
 
-    name_column, signup_column = st.columns(
-        [3, 1],
-        vertical_alignment="bottom",
-    )
+    st.write("Deltagere:")
 
-    with name_column:
-        st.text_input("Dit navn", key="name")
+    if participants:
+        for participant in participants:
+            st.write(f"• {participant}")
+    else:
+        st.info("Ingen er tilmeldt endnu.")
+
+    if is_full:
+        st.info("Eventet er fuldt.")
+
+    signup_column, unsubscribe_column = st.columns(2)
 
     with signup_column:
-        signup_clicked = st.button("Tilmeld", disabled=is_full)
+        signup_clicked = st.button(
+            "Tilmeld",
+            disabled=is_full,
+        )
 
-    name = st.session_state["name"].strip()
+    with unsubscribe_column:
+        unsubscribe_clicked = st.button("Afmeld")
 
     if signup_clicked:
         if not name:
-            st.error("Skriv dit navn i feltet først.")
+            st.error("Skriv dit navn i sidebaren først.")
         else:
             response = api_request(
                 "POST",
@@ -148,67 +166,48 @@ if events:
                     "message": f"{name} er tilmeldt.",
                 }
 
-                # Genkørslen henter den opdaterede liste før tabellen tegnes igen.
+                # Genkørslen opdaterer både oversigten og deltagerlisten.
                 st.rerun()
 
-    if is_full:
-        st.info("Eventet er fuldt.")
+    if unsubscribe_clicked:
+        if not name:
+            st.error("Skriv dit navn i sidebaren først.")
+        else:
+            # Navnet URL-kodes, så eksempelvis mellemrum kan indgå i stien.
+            encoded_name = quote(name, safe="")
 
-    st.write("Deltagere:")
-
-    if participants:
-        for participant in participants:
-            participant_column, action_column = st.columns(
-                [3, 1],
-                vertical_alignment="center",
+            response = api_request(
+                "DELETE",
+                f"/events/{selected_event_id}/signups/{encoded_name}",
             )
 
-            with participant_column:
-                st.write(participant)
+            if response is not None:
+                st.session_state["signup_feedback"] = {
+                    "event_id": selected_event_id,
+                    "message": f"{name} er afmeldt.",
+                }
+                st.rerun()
 
-            with action_column:
-                unsubscribe_clicked = st.button(
-                    "Afmeld",
-                    key=f"unsubscribe_{selected_event_id}_{participant}",
-                )
-
-                if unsubscribe_clicked:
-                    # Navnet fra rækken bruges, uanset værdien i navnefeltet.
-                    encoded_name = quote(participant, safe="")
-
-                    response = api_request(
-                        "DELETE",
-                        f"/events/{selected_event_id}/signups/{encoded_name}",
-                    )
-
-                    if response is not None:
-                        st.session_state["signup_feedback"] = {
-                            "event_id": selected_event_id,
-                            "message": f"{participant} er afmeldt.",
-                        }
-                        st.rerun()
-    else:
-        st.info("Ingen er tilmeldt endnu.")
-
+    # Succesbeskeden bevares over én genkørsel og vises under knapperne.
     feedback = st.session_state.pop("signup_feedback", None)
 
     if feedback and feedback["event_id"] == selected_event_id:
         st.success(feedback["message"])
 
 
-# Oprettelse er også tilgængelig, når eventlisten er tom.
+# Formularen er tilgængelig, selv når der ikke findes events.
 st.subheader("Opret event")
 
 with st.form("create_event_form"):
     title = st.text_input("Titel")
     date = st.date_input("Dato")
     capacity = st.slider(
-    "Antal pladser",
-    min_value=1,
-    max_value=100,
-    value=10,
-    step=1,
-)
+        "Antal pladser",
+        min_value=1,
+        max_value=100,
+        value=10,
+        step=1,
+    )
 
     submitted = st.form_submit_button("Opret event")
 
