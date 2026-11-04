@@ -1,3 +1,9 @@
+
+# Git Repository:
+https://github.com/RasHaslund/fredagsbar.git
+
+
+
 # Fredagsbarens event-system
 
 Et event-system med Flask API og Streamlit-frontend.
